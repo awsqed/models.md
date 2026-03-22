@@ -1,0 +1,40 @@
+[project]
+name = "models-pipeline"
+version = "0.1.0"
+description = "LLM-based model catalog generation pipeline"
+requires-python = ">=3.14"
+dependencies = [
+  "anthropic>=0.86.0",
+  "chardet<6",
+  "crawl4ai",
+  "google-genai>=1.68.0",
+  "markdownify>=1.2.0",
+  "openai>=2.29.0",
+  "python-dotenv>=1.0.1",
+  "python-toon>=0.1.3",
+]
+
+[dependency-groups]
+dev = [
+  "no-implicit-optional>=1.4",
+  "pyright>=1.1.408",
+  "pytest>=8.0.0",
+  "ruff>=0.15.7",
+  "ufmt>=2.9.1",
+  "vulture>=2.15",
+]
+
+[project.scripts]
+models-pipeline = "models_pipeline.cli:main"
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/models_pipeline"]

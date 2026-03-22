@@ -1,0 +1,135 @@
+schema_version: 1
+purpose: Compact normalized schema for AI model reference records.
+document_date: 2026-03-21
+
+documents:
+  models.md: index and routing file; read first
+  models.catalog.copilot.md: GitHub Copilot raw catalog
+  models.catalog.opencode.md: OpenCode Go raw catalog
+  models.lifecycle.md: generated retirement and replacement lookup
+  models.views.md: generated recommendations by cost, task, workflow
+  models.schema.yaml: field definitions and normalization rules
+
+hierarchy:
+  levels:
+    - platform
+    - vendor
+    - family
+    - model
+  rule: platform, vendor, and family are inherited from the current file and headings and should not be repeated inside each model record unless a generated format requires them.
+
+enums:
+  status:
+    - active
+    - preview
+    - deprecated
+    - retiring
+    - retired
+    - unconfirmed
+  support_flag:
+    - y
+    - n
+    - var
+    - unk
+  reasoning:
+    - none
+    - basic
+    - 4k
+    - low-med-high
+    - low-med-high-xhigh
+    - interleaved
+    - unk
+  multiplier:
+    - 0x
+    - 0.25x
+    - 0.33x
+    - 1x
+    - 3x
+    - 30x
+    - unk
+    - tbc
+
+aliases:
+  st: status
+  rel: release_date
+  eol: retirement_date
+  repl: replacement_model
+  ctx: context_window
+  out: output_window
+  in: input_limit
+  rsn: reasoning
+  tools: tool_support
+  img: image_support
+  aud: audio_support
+  vid: video_support
+  att: attachment_support
+  temp: temperature_control
+  mult: copilot_multiplier
+  est: estimated_cost_per_request
+  rate: pricing_note
+  best: best_for
+  sig: differentiators
+  caut: cautions
+  fb: fallback_or_migration
+
+record_order:
+  - id
+  - st
+  - rel
+  - eol
+  - repl
+  - ctx
+  - out
+  - in
+  - rsn
+  - tools
+  - img
+  - aud
+  - vid
+  - att
+  - temp
+  - mult
+  - est
+  - rate
+  - best
+  - sig
+  - caut
+  - fb
+
+required_fields:
+  - id
+  - st
+
+id_rule: short model id only; reconstruct a platform-qualified path from the current file and headings when needed.
+
+defaults:
+  in: unk
+  tools: unk
+  img: unk
+  aud: unk
+  vid: unk
+  att: unk
+  temp: unk
+  mult: unk
+  est: unk
+  rate: unk
+  best: []
+  sig: []
+  caut: []
+  fb: none
+
+normalization_rules:
+  - Keep one record per model.
+  - Preserve record_order for every entry.
+  - Use explicit status based on document_date, not marketing labels in the model id.
+  - Put future retirement in both lifecycle lists and the model record via st=retiring plus eol/repl.
+  - Use retired for models whose retirement_date is before document_date.
+  - Use deprecated for discouraged but still available models.
+  - Use unconfirmed when specs are incomplete or provider identity is not reliable.
+  - Use unk instead of inventing missing values.
+  - Keep quick-reference sections derivable from the catalog.
+  - Prefer short noun phrases in best, sig, caut, and fb.
+  - Omit fields with unk or none values for context efficiency.
+
+example_record: |
+  id=example-model | st=active | rel=2026-01-01 | ctx=128K | out=64K | rsn=basic | tools=y | img=n | aud=n | vid=n | att=y | mult=1x | best=general coding | sig=fast tool use | caut=limited context

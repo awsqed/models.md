@@ -1,0 +1,138 @@
+{
+  "outputs": [
+    "docs/models/models.catalog.copilot.md",
+    "docs/models/models.catalog.opencode.md",
+    "docs/models/models.lifecycle.md",
+    "docs/models/models.views.md"
+  ],
+  "max_chars_per_source": 65536,
+  "llm": {
+    "model": "openai/gpt-5.4",
+    "api_base_url": "https://api.kilo.ai/api/gateway/chat/completions",
+    "timeout_seconds": 300,
+    "max_retries": 2,
+    "max_output_tokens": 65536,
+    "disable_thinking": true
+  },
+  "summarizer": {
+    "enabled": true,
+    "model": "anthropic/claude-haiku-4.5",
+    "api_base_url": "https://api.kilo.ai/api/gateway/chat/completions",
+    "timeout_seconds": 120,
+    "max_retries": 2,
+    "max_output_tokens": 16384,
+    "disable_thinking": true
+  },
+  "logging": {
+    "capture_sources": true,
+    "capture_prompts": true,
+    "capture_llm_io": true,
+    "capture_outputs": true
+  },
+  "sources": [
+    {
+      "name": "index",
+      "type": "file",
+      "value": "docs/models/models.md",
+      "summarize": false
+    },
+    {
+      "name": "copilot_catalog",
+      "type": "file",
+      "value": "docs/models/models.catalog.copilot.md",
+      "summarize": false
+    },
+    {
+      "name": "opencode_catalog",
+      "type": "file",
+      "value": "docs/models/models.catalog.opencode.md",
+      "summarize": false
+    },
+    {
+      "name": "lifecycle",
+      "type": "file",
+      "value": "docs/models/models.lifecycle.md",
+      "summarize": false
+    },
+    {
+      "name": "views",
+      "type": "file",
+      "value": "docs/models/models.views.md",
+      "summarize": false
+    },
+    {
+      "name": "opencode_go",
+      "type": "url",
+      "value": "https://opencode.ai/docs/go.md",
+      "summarize": true,
+      "browser": {
+        "browser_type": "chromium",
+        "headless": true,
+        "text_mode": true,
+        "light_mode": true
+      },
+      "run": {
+        "cache_mode": "ENABLED",
+        "verbose": false
+      }
+    },
+    {
+      "name": "copilot_supported_models",
+      "type": "url",
+      "value": "https://docs.github.com/en/copilot/reference/ai-models/supported-models",
+      "summarize": true,
+      "browser": {
+        "browser_type": "chromium",
+        "headless": true,
+        "text_mode": true,
+        "light_mode": true
+      },
+      "run": {
+        "css_selector": ".ArticleGridLayout_containerBox__lLLio > div[data-container=article]",
+        "cache_mode": "ENABLED",
+        "verbose": false
+      }
+    },
+    {
+      "name": "copilot_model_comparison",
+      "type": "url",
+      "value": "https://docs.github.com/en/copilot/reference/ai-models/model-comparison",
+      "summarize": true,
+      "browser": {
+        "browser_type": "chromium",
+        "headless": true,
+        "text_mode": true,
+        "light_mode": true
+      },
+      "run": {
+        "css_selector": ".ArticleGridLayout_containerBox__lLLio > div[data-container=article]",
+        "cache_mode": "ENABLED",
+        "verbose": false
+      }
+    },
+    {
+      "name": "copilot_premium_requests",
+      "type": "url",
+      "value": "https://docs.github.com/en/billing/concepts/product-billing/github-copilot-premium-requests",
+      "summarize": true,
+      "browser": {
+        "browser_type": "chromium",
+        "headless": true,
+        "text_mode": true,
+        "light_mode": true
+      },
+      "run": {
+        "css_selector": ".ArticleGridLayout_containerBox__lLLio > div[data-container=article]",
+        "cache_mode": "ENABLED",
+        "verbose": false
+      }
+    },
+    {
+      "name": "models_dev_api",
+      "type": "models_dev_api",
+      "value": "github-copilot,opencode-go",
+      "to_toon": true,
+      "summarize": true
+    }
+  ]
+}

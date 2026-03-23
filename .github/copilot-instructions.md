@@ -1,90 +1,172 @@
-# Copilot Instructions for `models-pipeline`
+# GitHub Copilot Instructions
 
-## Build, test, and lint commands
+## Priority Guidelines
 
-- Preferred task runner:
-  - `make help`
-  - `make setup`
-  - `make run` (set `OPENAI_API_KEY`)
-  - `make check` (set `OPENAI_API_KEY`)
-  - `make qa`
-  - `make test-file TEST=tests/test_pipeline.py`
-  - `make test-case TEST=tests/test_pipeline.py::test_step_load_config_reads_and_overrides`
+When generating code for this repository, follow this priority order:
 
-- Initial setup (installs deps and crawl runtime):
-  - `uv sync && uv run crawl4ai-setup`
-- Run CLI help:
-  - `uv run python -m models_pipeline --help`
-  - `uv run models-pipeline --help`
-- Generate outputs:
-  - `OPENAI_API_KEY=... uv run models-pipeline`
-- Validate outputs without writing:
-  - `OPENAI_API_KEY=... uv run models-pipeline --check`
+1. Version compatibility and dependency constraints in this document.
+2. Any files under `.github/copilot/` (if more are added later).
+3. Established patterns in `src/models_pipeline/` and `tests/`.
+4. Existing data contracts in `models.schema.yaml` and `config.json`.
+5. Consistency with surrounding code over external best practices.
 
-- Full test suite:
-  - `uv run pytest`
-- Single test file:
-  - `uv run pytest tests/test_pipeline.py`
-- Single test case:
-  - `uv run pytest tests/test_pipeline.py::test_step_load_config_reads_and_overrides`
+Do not introduce patterns that are not already present in this repository unless explicitly requested.
 
-- Lint:
-  - `uv run ruff check src tests`
-- Type check:
-  - `uv run pyright src`
+## Technology Versions
 
-## Skills
+Use only features compatible with detected versions:
 
-- Add source type: `.github/skills/add-source-type/SKILL.md`
-- Conventional commit: `.github/skills/conventional-commit/SKILL.md`
+- Python: `>=3.14` (`pyproject.toml`, `pyrightconfig.json`).
+- Package/build tools: `uv` + `hatchling` (`pyproject.toml`, `uv.lock`).
+- LLM SDKs used by code:
+  - `openai==2.29.0`
+  - `anthropic==0.86.0`
+  - `google-genai==1.68.0`
+- Source/data utilities:
+  - `crawl4ai==0.8.5`
+  - `markdownify==1.2.2`
+  - `python-dotenv==1.2.2`
+  - `python-toon==0.1.3`
+- QA/test tooling in active use:
+  - `pytest==9.0.2`
+  - `pyright==1.1.408`
+  - `ruff==0.15.7`
+  - `ufmt==2.9.1`
 
-## High-level architecture
+Never assume newer APIs than the versions above.
 
-This project is a typed pipeline that regenerates markdown catalogs from local files, crawled URLs, and models.dev API data.
+## Architecture And Boundaries
 
-- Entrypoints:
-  - `models-pipeline` script (`pyproject.toml`) -> `models_pipeline.cli:main`
-  - `python -m models_pipeline` -> `src/models_pipeline/__main__.py`
-- Runtime orchestrator:
-  - `src/models_pipeline/pipeline/run_session.py` creates per-run logs under `logs/runs/<timestamp>/`, executes steps, and supports write mode vs `--check`.
-- Pipeline steps:
-  - `src/models_pipeline/pipeline/step_config.py`, `step_read.py`, and `step_process.py` implement load config -> optional crawl dependency check -> load schema -> read/summarize sources -> build prompt -> call LLM -> parse outputs -> validate/write outputs.
-- Config and schema:
-  - `config.json` is loaded by `src/models_pipeline/config/loader.py` into frozen dataclasses in `config/schema.py`, which also define the runtime defaults.
-  - Output paths are dynamic but constrained to `docs/models/*.md`.
-- Source ingestion:
-  - `src/models_pipeline/sources/reader.py` dispatches by registry-backed parser kind.
-  - built-in source types: `file`, `url`, `text`, `models_dev_api`.
-  - URL sources use crawl integration in `src/models_pipeline/crawl/`.
-  - models.dev ingestion is in `src/models_pipeline/sources/http.py`.
-- Prompting + LLM:
-  - Catalog prompts in `src/models_pipeline/prompt/catalog.py`; optional per-source summarization prompt in `prompt/summarizer.py`.
-  - `src/models_pipeline/llm/adapter_select.py` + `src/models_pipeline/llm/request_exec.py` auto-detect OpenAI vs Anthropic-style adapter from base URL and perform retry/error handling.
-- Output handling:
-  - LLM response must be JSON mapping output file path -> markdown content.
-  - Parsing and guardrails are in `src/models_pipeline/output/parser.py` and `output/validator.py`.
-  - File write/check behavior is in `output/writer.py`.
+Treat the codebase as a layered, modular monolith with clear package boundaries:
 
-## Key conventions in this repository
+- `src/models_pipeline/config/`: configuration parsing, coercion, validation, and dataclass schema.
+- `src/models_pipeline/sources/`: source parser abstraction, parser registry, and source reading/summarization flow.
+- `src/models_pipeline/crawl/`: crawl4ai integration and markdown extraction.
+- `src/models_pipeline/prompt/`: prompt construction for catalog generation and source summarization.
+- `src/models_pipeline/llm/`: provider router, provider backends, and retry executor.
+- `src/models_pipeline/output/`: JSON extraction/parsing/validation and write-or-check output handling.
+- `src/models_pipeline/pipeline/`: orchestration of end-to-end steps plus run logging and artifacts.
+- `src/models_pipeline/cli.py` and `src/models_pipeline/__main__.py`: CLI entrypoints.
 
-- `config.json` shape is flat (no nested `runtime` object): top-level `llm`, `summarizer`, `logging`, `max_chars_per_source`, `outputs`, `sources`.
-  - `llm` and `summarizer` both accept `model`, `api_base_url`, `timeout_seconds`, `max_retries`, `max_output_tokens`, and `disable_thinking`.
-  - `sources[]` entries use `name`, `type`, `value`, optional `summarize`, optional `browser`, optional `run`, and optional `to_toon` for `models_dev_api`.
-- Source kinds come from `src/models_pipeline/sources/registry.py` registrations.
-- URL source conventions:
-  - A source must specify a single `value` URL; `urls` is not supported.
-  - The `query` and `adaptive` fields are not supported.
-- File source safety:
-  - File sources are restricted to workspace-relative paths; escaping repository root raises an error.
-- Output contract:
-  - Output names must be unique and match `docs/models/*.md`.
-  - LLM output must include all expected outputs and no extras.
-  - Markdown values are normalized to end with newline.
-- LLM auth behavior:
-  - Default key env is `OPENAI_API_KEY`.
-  - If adapter resolves to Anthropic and request kept default key env, client auto-switches to `ANTHROPIC_API_KEY`.
-- Optional source summarization:
-  - Each source can set `summarize: true|false`; when omitted, it falls back to global `summarizer.enabled`.
-- Logging conventions:
-  - Runs always emit structured artifacts in `logs/runs/...` (`run.meta.json`, `config.resolved.json`, step input/output JSON, status/events).
-  - Extra logging payloads are gated by `logging.capture_sources`, `capture_prompts`, `capture_llm_io`, `capture_outputs`.
+Keep responsibilities in their current package:
+
+- Do not place HTTP/provider logic outside `llm/` and `sources/http.py`.
+- Do not move orchestration logic out of `pipeline/run_session.py`.
+- Do not bypass `sources.registry` when adding source types.
+- Do not bypass `output.parse` + `output.validate` contracts when handling LLM responses.
+
+## Observed Code Patterns
+
+Follow these repository-native conventions.
+
+### Imports And Module Organization
+
+- Use absolute imports rooted at `models_pipeline`.
+- Keep imports grouped and stable; avoid wildcard imports.
+- Use `__all__` in package `__init__.py` files when exposing package-level API.
+
+### Typing And Data Modeling
+
+- Add type hints on public function signatures and important internal helpers.
+- Use frozen dataclasses for immutable request/config DTOs (`ChatRequest`, `PipelineOptions`, `SourceItem`, etc.).
+- Use union syntax (`A | B`) and built-in generics (`list[str]`, `dict[str, object]`).
+
+### Error Handling
+
+- Use `ValueError` for invalid user/config input and contract violations.
+- Use `RuntimeError` for runtime failures (network, external services, unsupported runtime state).
+- In LLM backends, map SDK-specific exceptions into `LLMRetryableError`/`LLMFatalError`, then normalize to `RuntimeError` in executor flow.
+
+### Logging And Runtime Feedback
+
+- Use concise `print(...)` status lines with prefixes like `[step]`, `[llm]`, `[source]`, `[output]`.
+- Use `RunLogger` and artifact writers for structured run diagnostics under `logs/runs/`.
+- Do not introduce Python `logging` module in new code unless explicitly requested.
+
+### File And Path Handling
+
+- Use `pathlib.Path` for path operations.
+- Read/write text with explicit `encoding="utf-8"`.
+- Create parent directories with `mkdir(parents=True, exist_ok=True)` before writes.
+- Preserve workspace safety checks (for example, preventing file-source path escape).
+
+### Prompt/Output Contract Rules
+
+- Prompt builders return `(system_prompt, user_prompt)` tuple.
+- LLM output is expected to be a single JSON object mapping output path -> markdown content.
+- Output markdown values must be non-empty and newline-terminated.
+- Output names must be restricted to configured allowed outputs.
+
+## Testing Conventions
+
+Mirror existing `pytest` style:
+
+- Test files/functions use `test_` naming.
+- Use plain function tests, not test classes.
+- Use fixtures like `tmp_path`, `monkeypatch`, `capsys`.
+- Prefer explicit assertion of behavior and error messages (`pytest.raises(..., match=...)`).
+- For flow/orchestration tests, patch call sites with `monkeypatch.setattr` and assert call order or captured artifacts.
+
+When adding behavior:
+
+- Add/adjust unit tests in `tests/` near the affected module area (`tests/config`, `tests/pipeline`, `tests/sources`, etc.).
+- Keep tests deterministic and local (no real network/API calls unless intentionally testing adapters with mocks/stubs).
+
+## Documentation Requirements
+
+Documentation style in this repository is minimal and practical:
+
+- Add docstrings for modules and key public functions where behavior is not obvious.
+- Keep comments short and focused on intent or invariants.
+- Avoid verbose narrative comments or restating obvious code.
+
+## Concrete Examples From This Repo
+
+Use these as pattern anchors:
+
+- CLI shape: `parse_args() -> argparse.Namespace`, `main() -> int`, and `raise SystemExit(main())` entrypoint.
+  - See: `src/models_pipeline/cli.py`, `src/models_pipeline/__main__.py`
+- Immutable config and request objects via frozen dataclasses.
+  - See: `src/models_pipeline/config/schema.py`, `src/models_pipeline/llm/types.py`, `src/models_pipeline/pipeline/types.py`
+- Registry-driven source type support with parser interface and explicit registration.
+  - See: `src/models_pipeline/sources/base.py`, `src/models_pipeline/sources/registry.py`, `src/models_pipeline/sources/parsers.py`
+- Step-oriented pipeline orchestration with structured run artifacts and JSON step logs.
+  - See: `src/models_pipeline/pipeline/run_session.py`, `src/models_pipeline/pipeline/log_runner.py`
+- Strict parse-validate-write output flow.
+  - See: `src/models_pipeline/output/parser.py`, `src/models_pipeline/output/validator.py`, `src/models_pipeline/output/writer.py`
+- Retry/backoff and backend routing for LLM calls.
+  - See: `src/models_pipeline/llm/executor.py`, `src/models_pipeline/llm/router.py`, `src/models_pipeline/llm/backends/*.py`
+- Pytest monkeypatch-heavy orchestration tests.
+  - See: `tests/pipeline/test_pipeline_run_session.py`, `tests/test_llm_client.py`, `tests/test_output.py`
+
+## Dependency And Versioning Guidelines
+
+- Treat project versioning as semantic (current version `0.1.0` in `pyproject.toml`).
+- If code changes require new dependencies or APIs:
+  - Update `pyproject.toml` dependency declarations.
+  - Refresh and commit `uv.lock`.
+  - Keep generated code compatible with Python 3.14 and the locked package versions.
+
+## Build, QA, And Local Commands
+
+Prefer existing commands in `Makefile`:
+
+- `make run` / `make check`
+- `make test`
+- `make lint`
+- `make typecheck`
+- `make qa`
+
+Do not invent new command flows when existing targets already cover the task.
+
+## Final Rule
+
+Before producing non-trivial code, scan neighboring files in the same package and mirror:
+
+- naming,
+- typing precision,
+- exception style,
+- logging format,
+- and test structure.
+
+If uncertain, prefer strict consistency with existing repository patterns over introducing new abstractions.

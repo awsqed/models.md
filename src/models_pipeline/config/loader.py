@@ -1,12 +1,9 @@
 import json
 from pathlib import Path
 
-from models_pipeline.config.builders import (
-    build_runtime_config,
-    build_source_item,
-    coerce_source_item,
-)
+from models_pipeline.config.runtime_builders import build_runtime_config
 from models_pipeline.config.schema import DEFAULT_OUTPUTS, PipelineConfig, SourceItem
+from models_pipeline.config.source_builders import build_source_item, coerce_source_item
 from models_pipeline.config.validators import validate_output_name
 from models_pipeline.sources.registry import get_source_registry
 

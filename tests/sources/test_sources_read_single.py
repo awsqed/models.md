@@ -7,7 +7,7 @@ from models_pipeline.sources import read
 
 def test_read_models_dev_api_source(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "models_pipeline.sources.parsers.fetch_models_dev_catalog",
+        "models_pipeline.sources.parsers.models_dev_api.fetch_models_dev_catalog",
         lambda providers=None: '[{"provider_id": "github-copilot"}]\n',
     )
     item = SourceItem(name="api", kind="models_dev_api", value="github-copilot")
@@ -20,7 +20,7 @@ def test_read_models_dev_api_source(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_read_models_dev_api_source_to_toon(monkeypatch: pytest.MonkeyPatch) -> None:
     raw_json = '[{"provider_id":"github-copilot","models":[{"id":"gpt-5"}]}]'
     monkeypatch.setattr(
-        "models_pipeline.sources.parsers.fetch_models_dev_catalog",
+        "models_pipeline.sources.parsers.models_dev_api.fetch_models_dev_catalog",
         lambda providers=None: raw_json,
     )
     item = SourceItem(
@@ -41,7 +41,7 @@ def test_read_models_dev_api_source_to_toon_invalid_json(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "models_pipeline.sources.parsers.fetch_models_dev_catalog",
+        "models_pipeline.sources.parsers.models_dev_api.fetch_models_dev_catalog",
         lambda providers=None: "{invalid json}",
     )
     item = SourceItem(
@@ -82,7 +82,7 @@ def test_read_url_single_calls_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
         called["kwargs"] = kwargs
         return "body"
 
-    monkeypatch.setattr("models_pipeline.sources.parsers.crawl.fetch", fake_fetch)
+    monkeypatch.setattr("models_pipeline.sources.parsers.url.crawl.fetch", fake_fetch)
     item = SourceItem(name="u", kind="url", value="https://example.com")
 
     text = read(item, root=Path("/tmp"))

@@ -1,68 +1,12 @@
-import json
 from pathlib import Path
-from typing import cast
 
 from crawl4ai import AsyncWebCrawler
 from crawl4ai.models import CrawlResult, CrawlResultContainer
 
 from models_pipeline.crawl.config_core import build_browser_config, build_run_config
+from models_pipeline.crawl.debug_dump import to_text, write_crawl_debug
 from models_pipeline.crawl.markdown_extract import extract_markdown
-
-
-def _to_text(value: object) -> str:
-    return value if isinstance(value, str) else ""
-
-
-def _extract_tables(result: CrawlResult) -> list[dict[str, object]]:
-    raw_tables = result.tables
-    normalized: list[dict[str, object]] = []
-    for table in raw_tables:
-        headers = table.get("headers", [])
-        rows = table.get("rows", [])
-        caption = table.get("caption", "")
-        summary = table.get("summary", "")
-        normalized.append(
-            {
-                "headers": headers if isinstance(headers, list) else [],
-                "rows": rows if isinstance(rows, list) else [],
-                "caption": caption if isinstance(caption, str) else "",
-                "summary": summary if isinstance(summary, str) else "",
-            }
-        )
-    return normalized
-
-
-def _build_debug_sections(entries: list[dict[str, object]], field: str) -> str:
-    if len(entries) == 1:
-        return _to_text(entries[0].get(field, ""))
-    chunks: list[str] = []
-    for entry in entries:
-        url = _to_text(entry.get("url", ""))
-        body = _to_text(entry.get(field, ""))
-        chunks.append(f"<!-- {url} -->\n{body}")
-    return "\n\n".join(chunks)
-
-
-def _write_crawl_debug(
-    debug_dir: Path,
-    entries: list[dict[str, object]],
-) -> None:
-    debug_dir.mkdir(parents=True, exist_ok=True)
-    (debug_dir / "raw_html.txt").write_text(
-        _build_debug_sections(entries, "raw_html"), encoding="utf-8"
-    )
-    (debug_dir / "cleaned_html.txt").write_text(
-        _build_debug_sections(entries, "cleaned_html"), encoding="utf-8"
-    )
-    tables: list[dict[str, object]] = []
-    for entry in entries:
-        entry_tables = entry.get("tables", [])
-        if isinstance(entry_tables, list):
-            tables.extend(cast(list[dict[str, object]], entry_tables))
-    (debug_dir / "tables.json").write_text(
-        json.dumps(tables, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+from models_pipeline.crawl.tables import extract_tables
 
 
 async def single_page(
@@ -90,18 +34,18 @@ async def single_page(
             )
             raise RuntimeError(f"crawl4ai failed for {url}: {detail}")
         if debug_dir is not None:
-            _write_crawl_debug(
+            write_crawl_debug(
                 debug_dir,
                 [
                     {
                         "url": url,
-                        "raw_html": _to_text(result.html),
-                        "cleaned_html": _to_text(
+                        "raw_html": to_text(result.html),
+                        "cleaned_html": to_text(
                             result.cleaned_html
                             if result.cleaned_html is not None
                             else ""
                         ),
-                        "tables": _extract_tables(result),
+                        "tables": extract_tables(result),
                     }
                 ],
             )

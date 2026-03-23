@@ -1,11 +1,16 @@
 import time
 from pathlib import Path
 
-from models_pipeline.llm import ChatMessage, ChatRequest, request_chat_completion
 from models_pipeline.pipeline.log_runner import RunLogger
 from models_pipeline.pipeline.log_utils import create_run_dir
 from models_pipeline.pipeline.run_artifacts import RunArtifacts
 from models_pipeline.pipeline.run_state import RunSessionState
+from models_pipeline.pipeline.session_payloads import (
+    llm_request_payload,
+    resolved_config_payload,
+    run_status,
+)
+from models_pipeline.pipeline.source_summarizer import build_source_summarizer
 from models_pipeline.pipeline.step_config import (
     source_config_dict,
     step_ensure_crawl,
@@ -23,7 +28,6 @@ from models_pipeline.pipeline.types import (
     PIPELINE_STEP_ORDER,
     PipelineOptions,
 )
-from models_pipeline.prompt import build_summary_prompt
 from models_pipeline.sources import Summarizer
 from models_pipeline.sources.registry import get_source_registry
 
@@ -81,41 +85,7 @@ class PipelineRunSession:
             self.state.loaded = step_load_config(self.options, self.root)
             loaded = self._require_loaded()
             self.artifacts.write_resolved_config(
-                {
-                    "sources_path": str(loaded.path),
-                    "runtime": {
-                        "max_chars_per_source": loaded.runtime.max_chars_per_source,
-                        "llm": {
-                            "model": loaded.model,
-                            "api_base_url": loaded.api_base_url,
-                            "timeout_seconds": loaded.runtime.llm.timeout_seconds,
-                            "max_retries": loaded.runtime.llm.max_retries,
-                            "max_output_tokens": loaded.runtime.llm.max_output_tokens,
-                            "disable_thinking": loaded.runtime.llm.disable_thinking,
-                        },
-                        "summarizer": {
-                            "enabled": loaded.runtime.summarizer.enabled,
-                            "model": loaded.runtime.summarizer.model,
-                            "api_base_url": loaded.runtime.summarizer.api_base_url,
-                            "timeout_seconds": loaded.runtime.summarizer.timeout_seconds,
-                            "max_retries": loaded.runtime.summarizer.max_retries,
-                            "max_output_tokens": loaded.runtime.summarizer.max_output_tokens,
-                            "disable_thinking": loaded.runtime.summarizer.disable_thinking,
-                        },
-                        "logging": {
-                            "capture_sources": loaded.runtime.logging.capture_sources,
-                            "capture_prompts": loaded.runtime.logging.capture_prompts,
-                            "capture_llm_io": loaded.runtime.logging.capture_llm_io,
-                            "capture_outputs": loaded.runtime.logging.capture_outputs,
-                        },
-                    },
-                    "check": self.options.check,
-                    "outputs": loaded.output_names,
-                    "source_count": len(loaded.source_items),
-                    "sources": [
-                        source_config_dict(item) for item in loaded.source_items
-                    ],
-                }
+                resolved_config_payload(loaded, check=self.options.check)
             )
             step_output.update(
                 {
@@ -164,42 +134,10 @@ class PipelineRunSession:
 
     def build_source_summarizer(self) -> Summarizer | None:
         loaded = self._require_loaded()
-        if not loaded.runtime.summarizer.enabled:
-            return None
-
-        cfg = loaded.runtime.summarizer
-        api_base_url = cfg.api_base_url or loaded.api_base_url
-        model = cfg.model or loaded.model
-
-        def summarize_source(source_name: str, text: str) -> str:
-            summary_system, summary_user = build_summary_prompt(source_name, text)
-            response = request_chat_completion(
-                ChatRequest(
-                    model=model,
-                    api_base_url=api_base_url,
-                    messages=[
-                        ChatMessage(role="system", content=summary_system),
-                        ChatMessage(role="user", content=summary_user),
-                    ],
-                    timeout_seconds=cfg.timeout_seconds,
-                    max_retries=cfg.max_retries,
-                    max_output_tokens=cfg.max_output_tokens,
-                    reasoning=not cfg.disable_thinking,
-                )
-            )
-            summary = response.content.strip() or text
-            self.state.summarizer_calls.append(
-                {
-                    "source_name": source_name,
-                    "input_chars": len(text),
-                    "summary_chars": len(summary),
-                    "returned_empty_content": not response.content.strip(),
-                    "usage": response.usage,
-                }
-            )
-            return summary
-
-        return summarize_source
+        return build_source_summarizer(
+            loaded,
+            record_call=self.state.summarizer_calls.append,
+        )
 
     def run_read_sources(self, source_summarizer: Summarizer | None) -> None:
         loaded = self._require_loaded()
@@ -284,23 +222,7 @@ class PipelineRunSession:
                 step_output["user_prompt_file"] = self.artifacts.write_prompt(
                     "prompt.user.txt", bundle.user
                 )
-            request = ChatRequest(
-                model=loaded.model,
-                api_base_url=loaded.api_base_url,
-                messages=[
-                    ChatMessage(role="system", content=bundle.system),
-                    ChatMessage(role="user", content=bundle.user),
-                ],
-                max_output_tokens=loaded.runtime.llm.max_output_tokens,
-                reasoning=not loaded.runtime.llm.disable_thinking,
-            )
-            payload = {
-                "endpoint": loaded.api_base_url,
-                "model": loaded.model,
-                "messages": [
-                    {"role": m.role, "content": m.content} for m in request.messages
-                ],
-            }
+            _, payload = llm_request_payload(loaded, bundle)
             step_output["llm_request_file"] = self.artifacts.write_llm_request(payload)
             if loaded.runtime.logging.capture_llm_io:
                 step_output["llm_request"] = payload
@@ -396,14 +318,7 @@ class PipelineRunSession:
 
     def finish(self) -> int:
         duration_ms = int((time.perf_counter() - self.run_started_at) * 1000)
-        partial_run = bool(self.until_step) and self.until_step != "write_outputs"
-        status = (
-            "partial_success"
-            if partial_run
-            else ("success" if self.state.exit_code == 0 else "check_failed")
-        )
-        if self.state.exit_code != 0:
-            status = "check_failed"
+        status = run_status(until_step=self.until_step, exit_code=self.state.exit_code)
 
         self.artifacts.write_run_status(
             status=status,

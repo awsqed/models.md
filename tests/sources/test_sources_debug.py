@@ -1,12 +1,12 @@
 import json
 from pathlib import Path
 
-from models_pipeline.crawl.fetch_workers import _write_crawl_debug
+from models_pipeline.crawl.debug_dump import write_crawl_debug
 
 
 def test_write_crawl_debug_writes_requested_debug_artifacts(tmp_path: Path) -> None:
     debug_dir = tmp_path / "crawl_debug" / "url"
-    _write_crawl_debug(
+    write_crawl_debug(
         debug_dir,
         [
             {

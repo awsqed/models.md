@@ -29,7 +29,7 @@ def test_read_url_single_writes_crawl_debug_files(monkeypatch, tmp_path: Path) -
         )
         return "final body"
 
-    monkeypatch.setattr("models_pipeline.sources.parsers.crawl.fetch", fake_fetch)
+    monkeypatch.setattr("models_pipeline.sources.parsers.url.crawl.fetch", fake_fetch)
     item = SourceItem(name="u", kind="url", value="https://example.com")
 
     blobs = read_all(
@@ -53,7 +53,7 @@ def test_read_all_url_without_debug_root_does_not_write_debug_files(
         assert kwargs.get("debug_dir") is None
         return "body"
 
-    monkeypatch.setattr("models_pipeline.sources.parsers.crawl.fetch", fake_fetch)
+    monkeypatch.setattr("models_pipeline.sources.parsers.url.crawl.fetch", fake_fetch)
     item = SourceItem(name="u", kind="url", value="https://example.com")
 
     blobs = read_all([item], root=Path("/tmp"))
